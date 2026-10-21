@@ -1,6 +1,10 @@
 # Compiled class file
 *.class
 .DS_Store
+__pycache__
+
+# Docker Compose 本地配置
+/.env
 
 # Log file
 *.log

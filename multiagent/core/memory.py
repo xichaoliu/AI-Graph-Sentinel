@@ -1,1 +1,0 @@
-# 配置 Checkpointer (内存或 Redis 快照，HITL 的核心)

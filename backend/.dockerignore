@@ -1,0 +1,33 @@
+# 构建上下文为 backend/，以下路径均相对 backend/
+
+# Python 缓存与虚拟环境
+**/__pycache__/
+**/*.py[cod]
+*$py.class
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.coverage
+htmlcov/
+
+# 密钥与本地配置：镜像内不落盘，运行时由 docker compose env_file 注入
+.env
+.env.*
+app/.env
+app/.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+
+# 开发期文件
+**/test_*.py
+**/*.log
+**/.DS_Store
+
+# 版本控制
+.git/
+.gitignore

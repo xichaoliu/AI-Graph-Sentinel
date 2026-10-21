@@ -1,0 +1,57 @@
+name: docugraph-sentinel
+
+services:
+  # 后端：FastAPI + LangGraph；内网供 nginx 代理，同时映射端口方便调试
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: ai-graph-sentinel/backend:local
+    restart: unless-stopped
+    # backend/app/.env 里的 LLM_NAME / LLM_API_KEY / LLM_API_BASE 在运行时注入，不打进镜像
+    env_file:
+      - path: ./backend/app/.env
+        required: false
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/openapi.json', timeout=3)"
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    networks:
+      - sentinel
+
+  # 前端：Vite 构建产物由 nginx 托管，并反向代理 /api、/internal 到 backend
+  frontend:
+    build:
+      context: ./bigscreen
+      dockerfile: Dockerfile
+    image: ai-graph-sentinel/frontend:local
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz >/dev/null 2>&1 || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - sentinel
+
+networks:
+  sentinel:
+    driver: bridge

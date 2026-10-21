@@ -3,7 +3,7 @@
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api import routes, sse
+from app.api import routes, sse
 app = FastAPI(
     title="DocuGraph 智能中枢接口",
     version="0.1.0",
