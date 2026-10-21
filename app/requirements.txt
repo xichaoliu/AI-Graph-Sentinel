@@ -1,0 +1,16 @@
+# 基础 Web 框架与异步支持
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+python-multipart>=0.0.9      # 用于接收前端上传的 PDF
+
+# LangGraph 及其依赖生态
+langgraph>=0.0.40
+langchain>=0.1.0
+langchain-openai>=0.0.5      # 即便用千问/DeepSeek，通常也用这个标准化接口
+
+# 数据处理与解析
+pydantic>=2.6.0              # 必须 V2 以上
+pypdf>=4.0.0                 # 解析 PDF 的核心库
+
+# 环境变量管理
+python-dotenv>=1.0.0
