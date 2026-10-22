@@ -31,7 +31,6 @@ def run(state:GraphState):
 
         请确保输出是合法的 json，不要包含任何其他解释文字
         """
-
     try:
         result = structured_llm.invoke(prompt)
         nodes = [node.model_dump() for node in result.nodes]

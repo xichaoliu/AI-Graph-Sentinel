@@ -8,7 +8,7 @@ class GraphState(TypedDict):
     file_name: str
     raw_text: str                 # Parser 提取出的原始文本
     # 抽取的中间结果
-    nodes: List[Dict[str, Any]]   # Echarts 需要的节点 [{"id": "1", "name": "张三"}]
+    nodes: Annotated[List[Dict[str, Any]], operator.add]   # Echarts 需要的节点 [{"id": "1", "name": "张三"}]
     edges: List[Dict[str, Any]]   # Echarts 需要的线 [{"source": "1", "target": "2"}]
     # 审查与报告
     conflicts: List[str]          # Validator 找出的矛盾点，用于大屏弹窗提醒
