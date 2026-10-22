@@ -16,64 +16,94 @@ class StartReq(BaseModel):
 class ConfirmReq(BaseModel):
     thread_id: str
     modified_nodes: List[Dict[str, Any]]
+
+# 与前端保持一致的上传限制（3MB / PDF）
+MAX_UPLOAD_BYTES = 3 * 1024 * 1024
+
 def to_sse(event: str, data) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 @router.post("/upload")
 def upload_start_flow(file: UploadFile):
+    filename = file.filename or ""
+    if not filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="仅支持 PDF 格式")
+    if file.size is not None and file.size > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="文件大小不能超过 3MB")
+
     async def gen():
         thread_id = str(uuid.uuid4())
         yield to_sse("threadId", {"text": thread_id})
-        yield to_sse("process", {"text": f"收到文档 {file.filename}"})
-        file_name = file.filename
+        yield to_sse("process", {"text": f"收到文档 {filename}"})
+
         file_bytes = await file.read()
+        if len(file_bytes) > MAX_UPLOAD_BYTES:
+            yield to_sse("error", {"text": "文件大小不能超过 3MB"})
+            return
+
         raw_text = ""
         try:
-            if file_name.endswith(".pdf"):
-                # 解析 PDF
-                reader = PdfReader(io.BytesIO(file_bytes))
-                for page in reader.pages:
-                    text = page.extract_text()
-                    if text:
-                        raw_text += text + "\n"
-            else:
-                # 默认按纯文本处理
-                raw_text = file_bytes.decode("utf-8", errors="ignore")
-                
+            # 格式已在入口限制为 PDF
+            reader = PdfReader(io.BytesIO(file_bytes))
+            for page in reader.pages:
+                text = page.extract_text()
+                if text:
+                    raw_text += text + "\n"
+
             # 截取前 3000 个字符，防止 Token 爆炸（真实企业级应用这里会做切片和分批处理）
             # raw_text = raw_text[:3000]
             print(f"[1. Parser PDF] 解析成功，提取文本长度: {len(raw_text)}")
         except Exception as e:
             print(f"[1. Parser PDF] 解析失败: {e}")
             yield to_sse("error", {"text": "文档解析失败"})
+            return
+
+        if not raw_text.strip():
+            yield to_sse("error", {"text": "PDF 中未提取到文本，请上传可复制文本的 PDF"})
+            return
+
         config = {"configurable": {"thread_id": thread_id}}
-        async for event in app_graph.astream({"file_name": file.filename, "raw_text": raw_text}, config=config,stream_mode="updates"):
-    # event 形如: {'node_name': {'some_state_key': 'new_value'}}
-            for node_name, update in event.items():
-                print(f"节点 {node_name} 执行完毕，状态更新: {update}")
-                # yield to_sse("process", {"text": f"节点 {node_name} 执行完毕，状态更新: {update}"})
-                if node_name != "__interrupt__":
-                    yield to_sse("process", {
-                        "text": {
-                            "node_name": node_name,
-                            "update": update,
-                            "message": f"节点 {node_name} 执行完毕"
-                        }
-                    })
-        # app_graph.invoke({"file_name": file.filename, "raw_text": raw_text}, config=config)
-        # state = app_graph.get_state(config)
-        # yield to_sse("graph", {"text":{
-        #     "status": "paused",
-        #     "nodes": state.values.get("nodes", []),
-        #     "edges": state.values.get("edges", [])
-        # }})
+        try:
+            async for event in app_graph.astream(
+                {"file_name": filename, "raw_text": raw_text},
+                config=config,
+                stream_mode="updates",
+            ):
+                # event 形如: {'node_name': {'some_state_key': 'new_value'}}
+                for node_name, update in event.items():
+                    print(f"节点 {node_name} 执行完毕，状态更新: {update}")
+                    if node_name != "__interrupt__":
+                        yield to_sse("process", {
+                            "text": {
+                                "node_name": node_name,
+                                "update": update,
+                                "message": f"节点 {node_name} 执行完毕"
+                            }
+                        })
+        except Exception as e:
+            print(f"[Upload] 工作流执行失败: {e}")
+            yield to_sse("error", {"text": f"工作流执行失败: {e}"})
+            return
+
+        # 图在 validator 后被 interrupt_after 暂停，把暂停时的图谱明确推给前端
+        state = app_graph.get_state(config)
+        yield to_sse("graph", {
+            "text": {
+                "status": "paused",
+                "thread_id": thread_id,
+                "nodes": state.values.get("nodes", []),
+                "edges": state.values.get("edges", []),
+            }
+        })
+
     return StreamingResponse(
-        gen(), 
-        media_type="text/event-stream",        
+        gen(),
+        media_type="text/event-stream",
         headers={
-        "Cache-Control": "no-cache",
-        "X-Accel-Buffering": "no",   # 避免 Nginx 之类的代理缓冲导致不实时
-    })
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",  # 避免 Nginx 之类的代理缓冲导致不实时
+        },
+    )
 
 
 @router.post("/confirm")

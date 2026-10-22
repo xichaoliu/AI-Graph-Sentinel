@@ -1,14 +1,14 @@
  # 定义全局共享状态 (TypedDict) - 极其重要
 
-from typing import TypedDict, List, Dict, Any, Annotated
-import operator
+from typing import TypedDict, List, Dict, Any
 
 class GraphState(TypedDict):
     # 用户原始输入
     file_name: str
     raw_text: str                 # Parser 提取出的原始文本
     # 抽取的中间结果
-    nodes: Annotated[List[Dict[str, Any]], operator.add]   # Echarts 需要的节点 [{"id": "1", "name": "张三"}]
+    # 覆盖式更新：HITL 确认时用人工审核后的节点替换，避免被重复追加
+    nodes: List[Dict[str, Any]]   # Echarts 需要的节点 [{"id": "1", "name": "张三"}]
     edges: List[Dict[str, Any]]   # Echarts 需要的线 [{"source": "1", "target": "2"}]
     # 审查与报告
     conflicts: List[str]          # Validator 找出的矛盾点，用于大屏弹窗提醒

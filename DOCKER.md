@@ -100,7 +100,8 @@ PYTHONPATH=. uvicorn app.main:app --reload --port 8000
 cd bigscreen && npm install && npm run dev
 ```
 
-Vite 默认监听 5173；接口直连 8000，后端已开启 CORS。
+Vite 默认监听 5173，并已通过 `server.proxy` 把 `/api`（含 SSE）代理到
+`http://127.0.0.1:8000`；需要改地址时可用 `VITE_API_PROXY` 覆盖。
 
 ## 新增文件
 
