@@ -40,7 +40,11 @@ services:
       backend:
         condition: service_healthy
     ports:
-      - "${FRONTEND_PORT:-8080}:80"
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      # 证书/私钥只读挂载，不进入镜像；替换证书后 nginx -s reload 即可
+      - ./bigscreen/ssl:/etc/nginx/ssl:ro
     environment:
       TZ: ${TZ:-Asia/Shanghai}
     healthcheck:

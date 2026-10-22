@@ -19,3 +19,6 @@ README.md
 .env.*
 !.env.production
 !.env.example
+
+# TLS 证书/私钥：由 compose 只读挂载，不进入构建上下文和镜像
+ssl/
