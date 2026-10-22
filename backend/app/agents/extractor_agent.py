@@ -15,13 +15,22 @@ class EdgeSchema(BaseModel):
     relation: str = Field(decription="关系描述")
 
 class GraphResult(BaseModel):
-    node: List[NodeSchema]
+    nodes: List[NodeSchema]
     edges: List[EdgeSchema]
 
 def run(state:GraphState):
     print(f"[2.Extractor Agent ] 正在调用大模型抽取图谱...")
-    structured_llm = llm_client.with_structured_output(GraphResult)
-    prompt = f"请从一下文本提取实体和关系：\n{state.get("raw_text")}"
+    structured_llm = llm_client.with_structured_output(GraphResult, method="json_mode" )
+    # prompt = f"请从一下文本提取实体和关系：\n{state.get("raw_text")}"
+    prompt = f"""
+        你是一个图谱抽取专家。
+        请从以下文本：\n{state.get("raw_text")}\n中抽取实体和关系，并严格以 JSON 格式输出。
+        输出必须是一个 JSON 对象，包含以下字段：
+        - "nodes": 一个数组，每个元素包含 "name"、"id"和"category"
+        - "edges": 一个数组，每个元素包含 "source", "target", "relation"
+
+        请确保输出是合法的 json，不要包含任何其他解释文字
+        """
 
     try:
         result = structured_llm.invoke(prompt)

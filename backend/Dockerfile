@@ -21,6 +21,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     HOME=/home/sentinel \
     TZ=Asia/Shanghai
 
+# 设置 pip 国内镜像源，加速下载（以清华源为例）
+ENV PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+ENV PIP_TRUSTED_HOST=pypi.tuna.tsinghua.edu.cn
+
+# 增加超时时间和重试次数，应对网络波动
+ENV PIP_DEFAULT_TIMEOUT=300
+ENV PIP_RETRIES=5
+
 WORKDIR /srv
 
 # tzdata 用于容器内日志时间；创建非 root 运行用户
@@ -32,9 +40,14 @@ RUN apt-get update \
 
 # 先装依赖，充分利用 Docker 层缓存
 COPY requirements.txt /tmp/requirements.txt
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install -r /tmp/requirements.txt \
-    && rm -f /tmp/requirements.txt
+# RUN --mount=type=cache,target=/root/.cache/pip \
+#     pip install -r /tmp/requirements.txt \
+#     && rm -f /tmp/requirements.txt
+
+# 修正缓存目录权限，并安装依赖
+RUN --mount=type=cache,target=/root/.cache/pip,uid=0,gid=0 \
+    pip install -r /tmp/requirements.txt && \
+    rm -f /tmp/requirements.txt
 
 # 只复制 Python 包；app/.env 已被 .dockerignore 排除，运行时由 compose env_file 注入
 COPY --chown=sentinel:sentinel app /srv/app
