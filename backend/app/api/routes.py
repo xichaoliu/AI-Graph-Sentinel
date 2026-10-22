@@ -78,17 +78,58 @@ def upload_start_flow(file: UploadFile):
 
 @router.post("/confirm")
 def confirm_flow(req: ConfirmReq):
+    """恢复工作流，并以 SSE 流式输出 Analyst 报告。
+
+    事件格式（每条都是 event + JSON data）：
+      process: {"text": "..."}           # 开始提示
+      report:  {"text": "<token>"}       # 报告增量
+      done:    {"report": "<markdown>"}  # 完整报告（最终以此为准）
+      error:   {"text": "..."}           # 异常信息
+
+    注意：这是 POST 接口，浏览器端需用 fetch + ReadableStream 消费，
+    原生 EventSource 只支持 GET。
+    """
     print("\n--- 恢复工作流 ---")
     config = {"configurable": {"thread_id": req.thread_id}}
 
-    # 更新人工修改的数据，并打上confirmed标记
+    # 更新人工修改的数据，并打上 confirmed 标记
     app_graph.update_state(
         config,
         {"human_confirmed": True, "nodes": req.modified_nodes}
     )
 
-    # 传入 None 继续往下跑
-    final_state  = app_graph.invoke(None, config=config)
-    return {"report": final_state.get("final_report")}
-    pass
+    def gen():
+        yield to_sse("process", {"text": "人工确认已收到，Analyst 正在生成报告..."})
+        report_parts: List[str] = []
+        try:
+            # custom 模式：只转发 analyst_agent 写入 writer 的 token
+            for chunk in app_graph.stream(None, config=config, stream_mode="custom"):
+                if isinstance(chunk, dict):
+                    token = chunk.get("token", "")
+                else:
+                    token = str(chunk) if chunk is not None else ""
+                if not token:
+                    continue
+                report_parts.append(token)
+                yield to_sse("report", {"text": token})
+
+            # stream 结束后从最终状态取完整报告
+            final_state = app_graph.get_state(config)
+            report = final_state.values.get("final_report") or "".join(report_parts)
+            if not report:
+                yield to_sse("error", {"text": "未生成报告，流程可能未到达 Analyst 节点"})
+                return
+            yield to_sse("done", {"report": report})
+        except Exception as e:
+            print(f"[Confirm] 报告生成失败: {e}")
+            yield to_sse("error", {"text": f"报告生成失败: {e}"})
+
+    return StreamingResponse(
+        gen(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",  # 避免 Nginx 之类的代理缓冲导致不实时
+        },
+    )
 
