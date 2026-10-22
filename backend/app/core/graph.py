@@ -10,15 +10,12 @@ workflow = StateGraph(GraphState)
 
 # 2. 添加节点
 workflow.add_node("supervisor", supervisor.run)
-workflow.add_node("parser", parser_agent.run)
 workflow.add_node("extractor", extractor_agent.run)
 workflow.add_node("validator", validator_agent.run)
 workflow.add_node("analyst", analyst_agent.run)
 
 # 3. 设置固定边（流水线）
 workflow.set_entry_point("supervisor")
-
-workflow.add_edge("parser", "supervisor")
 workflow.add_edge("extractor", "supervisor")
 workflow.add_edge("validator", "supervisor")
 workflow.add_edge("analyst", "supervisor")
@@ -38,7 +35,6 @@ workflow.add_conditional_edges(
     "supervisor",
     route_by_supervisor,
     {
-        "parser": "parser",
         "extractor": "extractor",
         "validator": "validator",
         "analyst": "analyst",
